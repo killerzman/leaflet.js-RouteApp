@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>RouteApp</title>
+
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+
+	<link rel="stylesheet" href="leaflet/leaflet.css" />
+	<link rel="stylesheet" href="leaflet/leaflet-routing-machine.css" />
+	<link rel="stylesheet" href="leaflet/Control.Geocoder.css" />
+	<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" />
+	<link rel="stylesheet" href="leaflet/L.Control.Locate.min.css" />
+	<script src="leaflet/leaflet.js"></script>
+	<script src="leaflet/leaflet-routing-machine.js"></script>
+	<script src="leaflet/Control.Geocoder.js"></script>
+	<script src="leaflet/jquery-3.4.1.min.js"></script>
+	<script src="leaflet/L.Control.Locate.min.js" charset="utf-8"></script>
+
+	<style>
+		html,
+		body,
+		#map {
+			height: 100%;
+			width: 100vw;
+		}
+
+		body {
+			padding: 0;
+			margin: 0;
+		}
+
+	</style>
+
+</head>
+
+<body>
+	<div id="map"></div>
+	<script>
+		var map = L.map('map').fitWorld();
+		var maxZoomValue = 20;
+
+		L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token=pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw', {
+			maxZoom: maxZoomValue,
+			attribution: 'Maps by <a href="https://www.mapbox.com/about/maps/">MapBox</a>. Routes from <a href="http://project-osrm.org/">OSRM</a>, data uses <a href="http://opendatacommons.org/licenses/odbl/">ODbL</a> license',
+			id: 'mapbox.streets'
+		}).addTo(map);
+
+		var geocoder = L.Control.geocoder({
+			defaultMarkGeocode: false
+		}).on('markgeocode', function(e) {
+			var latlngarr = [e.geocode.center.lat, e.geocode.center.lng];
+			var latlngdict = {
+				"lat": e.geocode.center.lat,
+				"lng": e.geocode.center.lng
+			};
+			var marker = L.marker(latlngarr).on("popupopen", onPopupOpen).bindPopup(
+				"<input type = 'button' value = 'Go to this marker' class = 'marker-go-to-button'/><br>" +
+				"<input type = 'button' value = 'Go from this marker' class = 'marker-go-from-button'/><br>" +
+				"<input type = 'button' value = 'Delete this marker' class = 'marker-delete-button'/>").addTo(map);
+
+			var gCoder = L.Control.Geocoder.nominatim();
+			gCoder.reverse(latlngdict, map.options.crs.scale(maxZoomValue), function(results) {
+				r = results[0];
+				if (r) {
+					markerLocation = r.html || r.name;
+					marker.setPopupContent(markerLocation + "<br>" + marker.getPopup().getContent());
+				}
+			});
+
+			map.setView(latlngarr, maxZoomValue);
+
+		}).addTo(map);
+
+		var router = L.Routing.control({
+			routeWhileDragging: true,
+			geocoder: L.Control.Geocoder.nominatim(),
+			waypointNameFallback: function(latLng) {
+				function zeroPad(n) {
+					n = Math.round(n);
+					return n < 10 ? '0' + n : n;
+				}
+
+				function sexagesimal(p, pos, neg) {
+					var n = Math.abs(p),
+						degs = Math.floor(n),
+						mins = (n - degs) * 60,
+						secs = (mins - Math.floor(mins)) * 60,
+						frac = Math.round((secs - Math.floor(secs)) * 100);
+					return (n >= 0 ? pos : neg) + degs + '°' +
+						zeroPad(mins) + '\'' +
+						zeroPad(secs) + '.' + zeroPad(frac) + '"';
+				}
+
+				return sexagesimal(latLng.lat, 'N', 'S') + ' ' + sexagesimal(latLng.lng, 'E', 'W');
+			}
+		}).addTo(map);
+
+		map.on('locationfound', onLocationFound);
+		map.on('locationerror', onLocationError);
+		map.on('click', onMapClick);
+
+		L.control.locate().addTo(map);
+		
+		function onLocationFound(e) {
+			var radius = e.accuracy / 2;
+
+			var greenIcon = new L.Icon({
+				iconUrl: 'leaflet/images/marker-icon-2x-green.png',
+				shadowUrl: 'leaflet/images/marker-icon-green.png',
+				iconSize: [25, 41],
+				iconAnchor: [12, 41],
+				popupAnchor: [1, -34]
+			});
+
+			var marker = L.marker(e.latlng, {
+					icon: greenIcon
+				}).on("popupopen", onPopupOpen).addTo(map)
+				.bindPopup("This is your location. You are within " + radius + " meters from this point.<br>" +
+					"<input type = 'button' value = 'Go to this marker' class = 'marker-go-to-button'/><br>" +
+					"<input type = 'button' value = 'Go from this marker' class = 'marker-go-from-button'/><br>");
+		}
+
+		function onLocationError(e) {
+			alert(e.message);
+		}
+
+		function onMapClick(e) {
+
+			var marker;
+
+			var gCoder = L.Control.Geocoder.nominatim();
+
+			gCoder.reverse(e.latlng, map.options.crs.scale(map.getZoom()), function(results) {
+				r = results[0];
+				if (r) {
+					markerLocation = r.html || r.name;
+					marker.setPopupContent(markerLocation + "<br>" + marker.getPopup().getContent());
+				}
+			});
+
+			var geojsonFeature = {
+
+				"type": "Feature",
+				"properties": {},
+				"geometry": {
+					"type": "Point",
+					"coordinates": [e.latlng.lat, e.latlng.lng]
+				}
+			}
+
+			L.geoJson(geojsonFeature, {
+
+				pointToLayer: function(feature, latlng) {
+
+					marker = L.marker(e.latlng, {
+
+						title: "Resource Location",
+						alt: "Resource Location",
+						riseOnHover: true,
+						draggable: true,
+
+					}).on("popupopen", onPopupOpen).bindPopup(
+						"<input type = 'button' value = 'Go to this marker' class = 'marker-go-to-button'/><br>" +
+						"<input type = 'button' value = 'Go from this marker' class = 'marker-go-from-button'/><br>" +
+						"<input type = 'button' value = 'Delete this marker' class = 'marker-delete-button'/>");
+
+					return marker;
+				}
+			}).addTo(map);
+		}
+
+		function onPopupOpen() {
+
+			var tempMarker = this;
+
+			$(".marker-go-from-button:visible").click(function() {
+				var curPos = tempMarker.getLatLng();
+				router.setWaypoints([L.latLng(curPos.lat, curPos.lng), router.getWaypoints()[1]]);
+			});
+			$(".marker-go-to-button:visible").click(function() {
+				var curPos = tempMarker.getLatLng();
+				router.setWaypoints([router.getWaypoints()[0], L.latLng(curPos.lat, curPos.lng)]);
+			});
+			$(".marker-delete-button:visible").click(function() {
+				map.removeLayer(tempMarker);
+			});
+		}
+
+	</script>
+</body>
+
+</html>

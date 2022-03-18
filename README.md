@@ -1,5 +1,5 @@
-# RouteApp-leaflet
-a simple maps app with routing and geolocation - done with leafletjs
+# leaflet.js - RouteApp
+a simple maps app with routing and geolocation - done with leaflet.js
 
 # Credits
 https://leafletjs.com/
